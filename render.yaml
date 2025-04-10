@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: downloader-app
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python downloader.py
