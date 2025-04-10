@@ -4,14 +4,13 @@ import re, os, uuid, shutil
 import instaloader
 
 app = Flask(__name__)
-app.config['SESSION_COOKIE_NAME'] = 'insta_downloader_session'  # Avoid default huge session name
 
 HTML = """
 <!doctype html>
-<html lang=\"en\">
+<html lang="en">
 <head>
-  <meta charset=\"UTF-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Instagram Video Downloader</title>
   <style>
     html, body {
@@ -187,22 +186,22 @@ HTML = """
   </style>
 </head>
 <body>
-  <div class=\"transition-circle\" id=\"circle\"></div>
-  <div class=\"theme-switch\">
-    <label class=\"switch\">
-      <input type=\"checkbox\" id=\"themeToggle\" onclick=\"toggleDarkMode(event)\">
-      <span class=\"slider\"></span>
+  <div class="transition-circle" id="circle"></div>
+  <div class="theme-switch">
+    <label class="switch">
+      <input type="checkbox" id="themeToggle" onclick="toggleDarkMode(event)">
+      <span class="slider"></span>
     </label>
   </div>
-  <div class=\"container\">
+  <div class="container">
     <h2>Instagram Video Downloader</h2>
-    <form method=post>
-      <input type=text name=url placeholder=\"Paste Instagram post URL here\" required>
+    <form method="post">
+      <input type="text" name="url" placeholder="Paste Instagram post URL here" required>
       <br>
-      <input type=submit value=\"Download Video\">
+      <input type="submit" value="Download Video">
     </form>
     {% if error %}
-      <div class=\"error\">{{ error }}</div>
+      <div class="error">{{ error }}</div>
     {% endif %}
   </div>
 
@@ -259,7 +258,8 @@ HTML = """
 """
 
 def sanitize_filename(title):
-    return re.sub(r'[\\/*?:"<>|]', "_", title)
+    # Remove newlines and illegal filename characters
+    return re.sub(r'[\\/*?:"<>|\r\n]', "_", title.strip())
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -270,7 +270,11 @@ def index():
             if "instagram.com" not in url:
                 raise Exception("Please enter a valid Instagram URL.")
 
-            shortcode = url.strip("/").split("/")[-1]
+            match = re.search(r"(?:reel|p|tv)/([A-Za-z0-9_-]+)", url)
+            if not match:
+                raise Exception("Invalid Instagram URL. Please use a link to a reel or post.")
+
+            shortcode = match.group(1)
             folder = f"temp_{uuid.uuid4()}"
             os.mkdir(folder)
             cwd = os.getcwd()
@@ -296,7 +300,9 @@ def index():
                 buffer = BytesIO(f.read())
             buffer.seek(0)
 
-            filename = sanitize_filename(post.caption[:80] or "instagram_video") + ".mp4"
+            # Safely extract a single-line caption for filename
+            caption = (post.caption or "instagram_video").splitlines()[0][:80]
+            filename = sanitize_filename(caption) + ".mp4"
 
             @after_this_request
             def remove_folder(response):
@@ -307,9 +313,13 @@ def index():
 
         except Exception as e:
             error = str(e)
+            # Clean up if folder exists
+            if 'folder' in locals() and os.path.exists(folder):
+                shutil.rmtree(folder)
 
     return render_template_string(HTML, error=error)
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
